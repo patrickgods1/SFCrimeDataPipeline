@@ -1,0 +1,11 @@
+logs/
+__pycache__/
+data/SFCrimeData2018toPresent.csv
+
+*.env
+*.bat
+*.drawio
+*.json
+*.png
+*.xml
+*.yml
