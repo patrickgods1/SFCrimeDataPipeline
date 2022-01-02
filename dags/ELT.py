@@ -286,13 +286,8 @@ def fetchToGSheets():
                         f."Latitude",
                         f."Longitude",
                         idate."FullDate" AS "IncidentFullDate",
-                        idate."DayNameOfWeek" AS "IncidentDayNameOfWeek",
-                        idate."DayNumberOfMonth" AS "IncidentDayNumberOfMonth",
                         idate."HolidayName" AS "IncidentHolidayName",
                         idate."isWeekend" AS "IncidentisWeekend",
-                        idate."MonthName" AS "IncidentMonthName",
-                        idate."CalenderYear" AS "IncidentCalenderYear",
-                        itime."Hour24" AS "IncidentHour24",
                         itime."FullTime12" AS "IncidentFullTime12",
                         itime."TimeOfDay" AS "IncidentTimeOfDay",
                         l."PoliceDistrict",
@@ -309,13 +304,19 @@ def fetchToGSheets():
                 WHERE r."ReportType" IN ('Coplogic Initial', 'Initial', 'Vehicle Initial');
             """
         df = pd.read_sql(sql, conn)
+        df['IncidentFullDate'] = pd.to_datetime(df['IncidentFullDate'])
+        df['yearMonth'] = df['IncidentFullDate'].dt.to_period('M')
+        df = df.set_index('yearMonth')
         dirpath = os.getcwd()
         gc = pygsheets.authorize(service_file=f'{dirpath}/config/service_file.json')
-        sh = gc.open('SFCrimeData')
-        wks = sh[0]
-        wks.clear(start='A1', end=None, fields='*')
-        # wks.rows = df.shape[0]
-        wks.set_dataframe(df,(0,0), fit=True)
+        # for idx, g in df.groupby([df.index.year.values, df.index.month.values]):
+        #     writeToGSheets(gc, f'SFCrimeData{idx}', g)
+        writeToGSheets(gc, f'SFCrimeData', df)
+        # sh = gc.open('SFCrimeData')
+        # wks = sh[0]
+        # wks.clear(start='A1', end=None, fields='*')
+        # # wks.rows = df.shape[0]
+        # wks.set_dataframe(df,(0,0), fit=True)
     except:
         conn.rollback()
         raise
@@ -323,6 +324,30 @@ def fetchToGSheets():
         conn.commit()
     finally:
         conn.close()
+
+def writeToGSheets(client, sheet_title, df):
+    try:
+        sheet = client.open(sheet_title)
+        print(f"Opened spreadsheet with id:{sheet.id} and url:{sheet.url}")
+    except pygsheets.SpreadsheetNotFound as error:
+        print(error)
+        return error
+        # # Can't find it and so create it                                                                                                                                                                                                                                                                                                  
+        # res = client.sheet.create(sheet_title)
+        # sheet_id = res['spreadsheetId']
+        # sheet = client.open_by_key(sheet_id)
+        # print(f"Created spreadsheet with id:{sheet.id} and url:{sheet.url}")
+        # # Share with self to allow to write to it                                                                                                                                                                                                                                                                                         
+        # sheet.share('your_email@gmail.com', role='owner', type='user', transferOwnership=True)
+
+        # # Share to all for reading                                                                                                                                                                                                                                                                                                        
+        # sheet.share('', role='reader', type='anyone')
+    finally:
+        wks = sheet.sheet1
+        wks.clear(start='A1', end=None, fields='*')
+        # wks.rows = df.shape[0]
+        wks.set_dataframe(df,(0,0), fit=True)
+
 
 default_args = {
     "owner": "airflow",
@@ -345,9 +370,10 @@ with DAG(
             task_id = "sql_transform",
             python_callable = sqlTransform
         )
-    fetchToGSheets = PythonOperator(
-            task_id = "fetch_to_gsheets",
-            python_callable = fetchToGSheets
-        )
+    # fetchToGSheets = PythonOperator(
+    #         task_id = "fetch_to_gsheets",
+    #         python_callable = fetchToGSheets
+    #     )
 
-fetchDataToLocal >> sqlLoad >> sqlTransform >> fetchToGSheets
+# fetchDataToLocal >> sqlLoad >> sqlTransform >> fetchToGSheets
+fetchDataToLocal >> sqlLoad >> sqlTransform

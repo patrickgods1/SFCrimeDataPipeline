@@ -1,5 +1,5 @@
 # SFCrimeDataPipeline
-The City of San Francisco provides a daily updated report with incidents filed with SFPD's reporting system. This data pipeline automates the ELT process into a final database table ready for data analysis querying.
+The City of San Francisco provides a daily updated report with incidents filed with SFPD's reporting system. This data pipeline automates the ELT process into a dimensional model ready for data analysis querying.
 
 ## Table of Contents
   * [Extract Load Tansform](#extract-load-transform)
@@ -25,7 +25,7 @@ The City of San Francisco provides a daily updated report with incidents filed w
 ![SFCrimeDimensionalModel](https://user-images.githubusercontent.com/60832092/147300248-c05daa58-a3d6-4273-83e4-650113c01ca2.png)
 
 ## Dashboard
-Tableau Public [dashboard](#dashboard) is currently a work in progress.
+Tableau Public [dashboard](https://public.tableau.com/app/profile/pat3330/viz/SFCrimeData_16407224575150/Story?publish=yes).
 
 ## Development
 These instructions will get you a copy of the project up and running on your local machine for development.
