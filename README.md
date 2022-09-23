@@ -11,6 +11,7 @@ The City of San Francisco provides a daily updated report with incidents filed w
     * [Setup](#setup)
       * [.env File](#.env-file)
       * [Docker](#docker)
+      * [Airflow Connection](#airflow-connection)
   * [Authors](#authors)
 
 ## Extract Load Transform
@@ -66,6 +67,14 @@ Run the following command to stop the container:
 ```
 docker-compose down
 ```
+
+#### Airflow Connection
+Navigate to [localhost:8080/connection/list/](localhost:8080/connection/list/) and add the following connection:
+![airflow](https://user-images.githubusercontent.com/60832092/192035584-186987dc-43ab-4082-a426-fec840d7e509.JPG)
+
+#### pgAdmin Connection
+Navigate to [localhost:8081/](localhost:8081/) and add the following connection:
+![pgadmin](https://user-images.githubusercontent.com/60832092/192035927-374863a2-a030-42f8-b5e4-931af5fb30b8.JPG)
 
 ## Authors
 * **Patrick Yu** - *Initial work* - [patrickgods1](https://github.com/patrickgods1)
