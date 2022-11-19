@@ -1,45 +1,49 @@
-# Import various airflow modules
-from airflow import DAG
-from airflow.operators.python_operator import PythonOperator
-from airflow.hooks.postgres_hook import PostgresHook
-
-# Work with CSV files
-import csv
-# Work with date and time
-from datetime import datetime, timedelta
 # Work with OS functions
 import os
-# Work with HTTP requests
-import requests
+
+# Work with date and time
+from datetime import datetime, timedelta
+
 # Work with Dataframes
 import pandas as pd
+
 # Work with Google Sheets
 import pygsheets
 
-def fetchDataToLocal():
+# Work with HTTP requests
+import requests
+
+# Import various airflow modules
+from airflow import DAG
+from airflow.hooks.postgres_hook import PostgresHook
+from airflow.operators.python_operator import PythonOperator
+
+
+def fetchDataToLocal() -> None:
     """
     Use the Python requests library to download the data in CSV format and saved in the
     local data directory.
     """
-    
+
     # Fetch the request
-    url = "https://data.sfgov.org/api/views/wg3w-h783/rows.csv?accessType=DOWNLOAD&bom=false&format=false&delimiter=%7C"
+    url = "https://data.sfgov.org/api/views/wg3w-h783/rows.csv?accessType=DOWNLOAD&bom=false&format=false&delimiter=%7C"  # noqa: E501
     with requests.get(url, stream=True) as response:
         response.raise_for_status()
 
-        with open(f"/opt/airflow/data/SFCrimeData2018toPresent.csv", "wb") as file:
+        with open("/opt/airflow/data/SFCrimeData2018toPresent.csv", "wb") as file:
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
             file.flush()
 
 
-def sqlLoad():
+def sqlLoad() -> None:
     # Connection to the PostgreSQL, defined in the Airflow UI
     conn = PostgresHook(postgres_conn_id="postgres_dwh").get_conn()
 
     try:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(
+                """
                     CREATE TABLE IF NOT EXISTS "Staging" (
                         "Incident Datetime" TIMESTAMP,
                         "Incident Date" DATE,
@@ -75,24 +79,27 @@ def sqlLoad():
                         "Invest In Neighborhoods (IIN) Areas" SMALLINT DEFAULT NULL,
                         "Current Supervisor Districts" SMALLINT DEFAULT NULL,
                         "Current Police Districts" SMALLINT DEFAULT NULL);
-                    
                     TRUNCATE TABLE "Staging";
-                """)
+                """  # noqa: E501
+            )
 
-            cur.execute("""
-                        ALTER TABLE "Staging" 
-                        DROP COLUMN IF EXISTS id;
-                    """)
+            cur.execute(
+                """ALTER TABLE "Staging"
+                    DROP COLUMN IF EXISTS id;
+                    """
+            )
 
-            with open(f"/opt/airflow/data/SFCrimeData2018toPresent.csv") as data:
-                cur.copy_expert("""COPY "Staging"
-                                FROM STDIN WITH (delimiter '|', format csv, header, NULL '')""", data)
-            
-            cur.execute("""
-                        ALTER TABLE "Staging" ADD id SERIAL;
-                    """)
+            with open("/opt/airflow/data/SFCrimeData2018toPresent.csv") as data:
+                cur.copy_expert(
+                    """COPY "Staging"
+                        FROM STDIN WITH (delimiter '|', format csv, header, NULL '')
+                        """,
+                    data,
+                )
 
-    except:
+            cur.execute('ALTER TABLE "Staging" ADD id SERIAL;')
+
+    except Exception:
         conn.rollback()
         raise
 
@@ -103,13 +110,14 @@ def sqlLoad():
         conn.close()
 
 
-def sqlTransform():
+def sqlTransform() -> None:
     # Connection to the PostgreSQL, defined in the Airflow UI
     conn = PostgresHook(postgres_conn_id="postgres_dwh").get_conn()
 
     try:
         with conn.cursor() as cur:
-            cur.execute("""
+            cur.execute(
+                """
                     CREATE TABLE IF NOT EXISTS "DimDate" (
                         "FullDate" DATE,
                         "DateID" INT,
@@ -118,7 +126,7 @@ def sqlTransform():
                         "DayNumberOfMonth" SMALLINT,
                         "DayNumberOfWeek" SMALLINT,
                         "DayNumberOfYear" SMALLINT,
-                        "HolidayName" TEXT DEFAULT NULL,                        
+                        "HolidayName" TEXT DEFAULT NULL,
                         "isHoliday" BOOL,
                         "isWeekday" BOOL,
                         "isWeekend" BOOL,
@@ -137,13 +145,19 @@ def sqlTransform():
                         "CalenderYear" SMALLINT);
 
                     TRUNCATE TABLE "DimDate";
-                """)
+                """
+            )
 
-            with open(f"/opt/airflow/data/dimDate.csv") as data:
-                cur.copy_expert("""COPY "DimDate"
-                                FROM STDIN WITH (delimiter ',', format csv, header, NULL '')""", data)
+            with open("/opt/airflow/data/dimDate.csv") as data:
+                cur.copy_expert(
+                    """COPY "DimDate"
+                        FROM STDIN WITH (delimiter ',', format csv, header, NULL '')
+                        """,
+                    data,
+                )
 
-            cur.execute("""
+            cur.execute(
+                """
                     CREATE TABLE IF NOT EXISTS "DimTime" (
                         "TimeID" SERIAL,
                         "Hour24" SMALLINT,
@@ -154,15 +168,20 @@ def sqlTransform():
                         "FullTime24" TIME,
                         "FullTime12" VARCHAR(11),
                         "TimeOfDay" VARCHAR(9));
-                    
                     TRUNCATE TABLE "DimTime";
-                """)
+                """
+            )
 
-            with open(f"/opt/airflow/data/dimTime.csv") as data:
-                cur.copy_expert("""COPY "DimTime"
-                                FROM STDIN WITH (delimiter ',', format csv, header, NULL '')""", data)
+            with open("/opt/airflow/data/dimTime.csv") as data:
+                cur.copy_expert(
+                    """COPY "DimTime"
+                        FROM STDIN WITH (delimiter ',', format csv, header, NULL '')
+                        """,
+                    data,
+                )
 
-            cur.execute("""
+            cur.execute(
+                """
                     CREATE TABLE IF NOT EXISTS "DimLocation"
                     ("LocationID" INT,
                     "PoliceDistrict" TEXT,
@@ -178,17 +197,17 @@ def sqlTransform():
                     FROM
                         (SELECT DISTINCT "Police District", "Analysis Neighborhood"
                             FROM "Staging") t;
-                """)
+                """  # noqa: E501
+            )
 
-            cur.execute("""
+            cur.execute(
+                """
                     CREATE TABLE IF NOT EXISTS "DimIncident"
                         ("IncidentID" INT,
                         "IncidentCategory" TEXT,
                         "IncidentSubcategory" TEXT,
                         "Resolution" TEXT);
-                    
                     TRUNCATE TABLE "DimIncident";
-
                     INSERT INTO "DimIncident"
                     SELECT
                         ROW_NUMBER() OVER (ORDER BY "Incident Category", "Incident Subcategory", "Resolution") AS "IncidentID",
@@ -197,13 +216,15 @@ def sqlTransform():
                         "Resolution"
                     FROM (SELECT DISTINCT "Incident Category", "Incident Subcategory", "Resolution"
                             FROM "Staging") t;
-                """)
+                """  # noqa: E501
+            )
 
-            cur.execute("""
+            cur.execute(
+                """
                     CREATE TABLE IF NOT EXISTS "DimReportType"
-                        ("ReportTypeID" INT, 
-                        "ReportType" VARCHAR(19), 
-                        "ReportTypeCode" CHAR(2), 
+                        ("ReportTypeID" INT,
+                        "ReportType" VARCHAR(19),
+                        "ReportTypeCode" CHAR(2),
                         "FiledOnline" BOOL);
 
                     TRUNCATE TABLE "DimReportType";
@@ -219,9 +240,11 @@ def sqlTransform():
                         END AS "FiledOnline"
                     FROM (SELECT DISTINCT "Report Type Description", "Report Type Code", "Filed Online"
                             FROM "Staging") t;
-                """)
+                """  # noqa: E501
+            )
 
-            cur.execute("""
+            cur.execute(
+                """
                     CREATE TABLE IF NOT EXISTS "FactCrime"
                         ("CrimeID" INT,
                         "IncidentDateID" INT,
@@ -232,8 +255,8 @@ def sqlTransform():
                         "IncidentID" INT,
                         "ReportTypeID" INT,
                         "IncidentDescription" TEXT,
-                        "Intersection" TEXT, 
-                        "Latitude" FLOAT8, 
+                        "Intersection" TEXT,
+                        "Latitude" FLOAT8,
                         "Longitude" FLOAT8);
 
                     TRUNCATE TABLE "FactCrime";
@@ -243,7 +266,7 @@ def sqlTransform():
                         s.id,
                         d1."DateID" AS "IncidentDateID",
                         t1."TimeID" AS "IncidentTimeID",
-                        d2."DateID" AS "ReportDateID", 
+                        d2."DateID" AS "ReportDateID",
                         t1."TimeID" AS "ReportTimeID",
                         l."LocationID" AS "LocationID",
                         i."IncidentID" AS "IncidentID",
@@ -264,9 +287,10 @@ def sqlTransform():
                             AND s."Analysis Neighborhood" = l."AnalysisNeighborhood"
                         LEFT JOIN "DimReportType" AS r ON s."Report Type Description" = r."ReportType"
                             AND s."Report Type Code" = r."ReportTypeCode";
-                """)
+                """  # noqa: E501
+            )
 
-    except:
+    except Exception:
         conn.rollback()
         raise
 
@@ -277,7 +301,7 @@ def sqlTransform():
         conn.close()
 
 
-def fetchToGSheets():
+def fetchToGSheets() -> None:
     # Connection to the PostgreSQL, defined in the Airflow UI
     conn = PostgresHook(postgres_conn_id="postgres_dwh").get_conn()
     try:
@@ -302,22 +326,15 @@ def fetchToGSheets():
                 JOIN "DimIncident" i ON f."IncidentID" = i."IncidentID"
                 JOIN "DimReportType" r ON f."ReportTypeID" = r."ReportTypeID"
                 WHERE r."ReportType" IN ('Coplogic Initial', 'Initial', 'Vehicle Initial');
-            """
+            """  # noqa: E501
         df = pd.read_sql(sql, conn)
-        df['IncidentFullDate'] = pd.to_datetime(df['IncidentFullDate'])
-        df['yearMonth'] = df['IncidentFullDate'].dt.to_period('M')
-        df = df.set_index('yearMonth')
+        df["IncidentFullDate"] = pd.to_datetime(df["IncidentFullDate"])
+        df["yearMonth"] = df["IncidentFullDate"].dt.to_period("M")
+        df = df.set_index("yearMonth")
         dirpath = os.getcwd()
-        gc = pygsheets.authorize(service_file=f'{dirpath}/config/service_file.json')
-        # for idx, g in df.groupby([df.index.year.values, df.index.month.values]):
-        #     writeToGSheets(gc, f'SFCrimeData{idx}', g)
-        writeToGSheets(gc, f'SFCrimeData', df)
-        # sh = gc.open('SFCrimeData')
-        # wks = sh[0]
-        # wks.clear(start='A1', end=None, fields='*')
-        # # wks.rows = df.shape[0]
-        # wks.set_dataframe(df,(0,0), fit=True)
-    except:
+        gc = pygsheets.authorize(service_file=f"{dirpath}/config/service_file.json")
+        writeToGSheets(gc, "SFCrimeData", df)
+    except Exception:
         conn.rollback()
         raise
     else:
@@ -325,51 +342,33 @@ def fetchToGSheets():
     finally:
         conn.close()
 
-def writeToGSheets(client, sheet_title, df):
+
+def writeToGSheets(
+    client: pygsheets.client, sheet_title: str, df: pd.DataFrame
+) -> pygsheets.exceptions:
     try:
         sheet = client.open(sheet_title)
         print(f"Opened spreadsheet with id:{sheet.id} and url:{sheet.url}")
     except pygsheets.SpreadsheetNotFound as error:
         print(error)
         return error
-        # # Can't find it and so create it                                                                                                                                                                                                                                                                                                  
-        # res = client.sheet.create(sheet_title)
-        # sheet_id = res['spreadsheetId']
-        # sheet = client.open_by_key(sheet_id)
-        # print(f"Created spreadsheet with id:{sheet.id} and url:{sheet.url}")
-        # # Share with self to allow to write to it                                                                                                                                                                                                                                                                                         
-        # sheet.share('your_email@gmail.com', role='owner', type='user', transferOwnership=True)
-
-        # # Share to all for reading                                                                                                                                                                                                                                                                                                        
-        # sheet.share('', role='reader', type='anyone')
     finally:
         wks = sheet.sheet1
-        wks.clear(start='A1', end=None, fields='*')
-        # wks.rows = df.shape[0]
-        wks.set_dataframe(df,(0,0), fit=True)
+        wks.clear(start="A1", end=None, fields="*")
+        wks.set_dataframe(df, (0, 0), fit=True)
 
 
-default_args = {
-    "owner": "airflow",
-    "start_date": datetime.today() - timedelta(days=1)
-              }
+default_args = {"owner": "airflow", "start_date": datetime.today() - timedelta(days=1)}
 with DAG(
     "SFCrimeDataELT",
-    default_args = default_args,
-    schedule_interval = "0 19 * * *",
-    ) as dag:
+    default_args=default_args,
+    schedule_interval="0 19 * * *",
+) as dag:
     fetchDataToLocal = PythonOperator(
-            task_id = "fetch_data_to_local",
-            python_callable = fetchDataToLocal
-        )
-    sqlLoad = PythonOperator(
-            task_id = "sql_load",
-            python_callable = sqlLoad
-        )
-    sqlTransform = PythonOperator(
-            task_id = "sql_transform",
-            python_callable = sqlTransform
-        )
+        task_id="fetch_data_to_local", python_callable=fetchDataToLocal
+    )
+    sqlLoad = PythonOperator(task_id="sql_load", python_callable=sqlLoad)
+    sqlTransform = PythonOperator(task_id="sql_transform", python_callable=sqlTransform)
     # fetchToGSheets = PythonOperator(
     #         task_id = "fetch_to_gsheets",
     #         python_callable = fetchToGSheets
